@@ -1,0 +1,10 @@
+mysql_user: dbuser
+mysql_password: dbpassword
+db_name: dbname
+backups_path: var/www/mysql_backups
+report_mail: from.mail@example.com
+report_mail_password: mailpassword123
+bck_remote_dir: home/ansible
+email_for_notification: John Jones <john.jones@example.com>
+smtp_host: 173.194.222.109
+smtp_port: 25

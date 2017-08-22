@@ -1,0 +1,83 @@
+---
+- name: Path existing check
+  stat:
+    path: /{{backups_path}}/{{inventory_hostname}}/
+  delegate_to: localhost
+  become: false
+  register: p
+
+- name: Creating backup directory on storage
+  file: path=/{{backups_path}}/{{inventory_hostname}}/daily/{{ansible_date_time.date}}  state=directory
+  delegate_to: localhost
+  become: false
+  when: p|succeeded
+
+- name: Backup Database
+  mysql_db: 
+    name: "{{db_name}}"
+    login_user: "{{mysql_user}}"
+    login_password: "{{mysql_password}}"
+    state: dump 
+    target: /{{bck_remote_dir}}/{{inventory_hostname}}_{{ ansible_date_time.date }}_{{db_name}}.sql
+  become: false
+  register: result
+  ignore_errors: yes
+
+
+- name: Sending Backup to mgmt server
+  become: false
+  remote_user: ansible
+  synchronize: 
+    src: /{{bck_remote_dir}}/{{inventory_hostname}}_{{ ansible_date_time.date }}_{{db_name}}.sql
+    dest: /{{backups_path}}/{{inventory_hostname}}/daily/{{ ansible_date_time.date }}/{{inventory_hostname}}_{{ansible_date_time.time}}_{{db_name}}.sql
+    mode: pull
+    rsync_opts:
+    - "--remove-source-files"
+  when: result|succeeded
+  register: send
+
+- name: Finding and removing old backups
+  find: 
+    file_type: file
+    recurse: yes
+    age: 23h
+    paths: /{{backups_path}}/{{inventory_hostname}}/daily/
+  delegate_to: localhost
+  register: files
+  become: false
+  when: result|succeeded
+
+- name: Finding and removing old backup directories
+  find: 
+    file_type: directory
+    recurse: yes
+    age: 10h
+    paths: /{{backups_path}}/{{inventory_hostname}}/daily/
+  delegate_to: localhost
+  become: false
+  register: directories
+  when: result|succeeded
+
+- name: Removing empty backup directories
+  file: 
+    path: "{{ item.path }}"
+    state: absent
+  with_items: 
+    - "{{ directories.files }}"
+    - "{{ files.files }}"
+  delegate_to: localhost
+  become: false
+  when: result|succeeded
+
+- name: Sending e-mail notification
+  mail:
+    host: "{{smtp_host}}"
+    port: "{{smtp_port}}"
+    username: "{{ report_mail }}"
+    password: "{{ report_mail_password }}"
+    to: "{{ email_for_notification }}"
+    subject: Ansible MySQL backup report on {{inventory_hostname}} {{ ansible_date_time.date }} {{ ansible_date_time.time }}
+    body: "{{ result }}"
+  become: false
+  delegate_to: localhost
+  when: result|failed
