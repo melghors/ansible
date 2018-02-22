@@ -1,0 +1,61 @@
+---
+# Usage: ansible-playbook nginx_upgrade.yml --extra-vars "node=localhost"
+# For Fedora: dnf install python python-devel
+
+  - name:
+    shell: pkill -9 nginx
+    become: true
+    ignore_errors: yes
+
+  - name: Removing nginx package(apt)
+    apt:
+      name: nginx
+      state: absent
+    when: ansible_os_family == 'Debian'
+
+  - name: Installing latest nginx package(apt)
+    apt:
+      name: nginx
+      update_cache: yes
+    when: ansible_os_family == 'Debian'
+
+  - name: Removing nginx package(yum)
+    yum:
+      name: nginx
+      state: absent  
+    when: ansible_distribution == 'CentOS'
+    ignore_errors: yes
+
+  - name: Installing latest nginx package(yum)
+    yum:
+      name: nginx
+      state: present  
+    when: ansible_distribution == 'CentOS'
+
+  - name: Enable and start nginx(deb<15)
+    service:
+      name: nginx
+      state: started
+      enabled: yes
+    when: ansible_os_family == 'Debian' and ansible_lsb.major_release|int < 15
+
+  - name: Removing nginx package(dnf)
+    dnf:
+      name: nginx
+      state: absent
+    when: ansible_distribution == 'Fedora'
+    ignore_errors: yes
+
+  - name: Installing latest nginx package(dnf)
+    dnf:
+      name: nginx
+      state: latest
+    when: ansible_distribution == 'Fedora'
+
+  - name: Enable and start nginx
+    systemd:
+      name: nginx
+      state: started
+      enabled: yes
+    when: ansible_os_family == 'Debian' or ansible_os_family == 'RedHat'
+

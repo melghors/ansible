@@ -1,0 +1,67 @@
+---
+# Usage: ansible-playbook rixjob_slave_upgrade.yml --extra-vars "node=localhost"
+# For Fedora: dnf install python python-devel
+- hosts: "{{ node }}"
+  tasks:
+
+# INSTALL LAST VERSION RIXJOB
+
+  - name: kill rixjob process
+    shell: pkill -9 rixjob
+    become: true
+    ignore_errors: yes
+
+  - name: Removing rixjob package(apt)
+    apt:
+      name: rixjob
+      state: absent
+    when: ansible_os_family == 'Debian'
+
+  - name: Installing latest rixjob package(apt)
+    apt:
+      name: rixjob
+      update_cache: yes
+    when: ansible_os_family == 'Debian'
+
+  - name: Removing rixjob package(yum)
+    yum:
+      name: rixjob
+      state: absent  
+    when: ansible_distribution == 'CentOS'
+    ignore_errors: yes
+
+  - name: Installing latest rixjob package(yum)
+    yum:
+      name: rixjob
+      state: present  
+    when: ansible_distribution == 'CentOS'
+
+  - name: Removing rixjob package(dnf)
+    dnf:
+      name: rixjob
+      state: absent
+    when: ansible_distribution == 'Fedora'
+    ignore_errors: yes
+
+  - name: Installing latest rixjob package(dnf)
+    dnf:
+      name: rixjob
+      state: latest
+    when: ansible_distribution == 'Fedora'
+
+# ENABLE AND START RIXJOB
+
+  - name: Enable and start rixjob(deb<15)
+    service:
+      name: rixjob_slave
+      state: started
+      enabled: yes
+    when: ansible_os_family == 'Debian' and ansible_lsb.major_release|int < 15
+
+  - name: Enable and start rixjob
+    systemd:
+      name: rixjob_slave
+      state: started
+      enabled: yes
+    when: ansible_os_family == 'Debian' and ansible_lsb.major_release|int >15 or ansible_os_family == 'RedHat'
+
